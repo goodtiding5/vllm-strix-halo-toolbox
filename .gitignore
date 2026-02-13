@@ -1,0 +1,44 @@
+# Environment configuration
+.toolbox.env
+
+# Cache directories
+cache/
+downloads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Linter cache
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Temporary files
+tmp/
+temp/

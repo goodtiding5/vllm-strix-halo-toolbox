@@ -1,0 +1,51 @@
+services:
+  # --- BUILDER & RUNTIME ---
+  vllm-strix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        VLLM_BRANCH: main
+        # Crank it up to 32 to maximize your RDNA 3.5 silicon build speed
+        MAX_JOBS: 32 
+    image: vllm-rocm-gfx1151:latest
+    container_name: vllm-strix-halo
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    # Crucial for ROCm/APU access
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    ports:
+      - "8080:8080"
+    environment:
+      - VLLM_TARGET_DEVICE=rocm        # Bypass inference logic
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1 # Match the ISA in rocminfo
+      - PYTORCH_ROCM_ARCH=gfx1151      # Match the Agent 2 name
+      - VLLM_USE_TRITON_FLASH_ATTN=0
+      - VLLM_LOGGING_LEVEL=DEBUG # Keep this for now to see details if it fails
+    volumes:
+      # Keep your models persistent on your host machine
+      - ./cache/huggingface:/root/.cache/huggingface
+      - /dev/shm:/dev/shm
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Default model launch
+    command: >
+      vllm
+      serve
+      Qwen/Qwen2.5-0.5B-Instruct
+      --host 0.0.0.0
+      --port 8080
+      --enforce-eager
