@@ -37,7 +37,12 @@ echo "  ✓ Created ${VENV_DIR}"
 echo ""
 echo "[01] Creating Python virtual environment..."
 python${PYTHON_VERSION:-3.12} -m venv "${VENV_DIR}"
-echo "  ✓ Created venv at ${VENV_DIR}"
+
+# Upgrade pip, wheel, and setuptools (required for --no-build-isolation builds)
+echo ""
+echo "[01] Upgrading pip, wheel, and setuptools..."
+"${VENV_DIR}/bin/pip" install --no-cache-dir --upgrade pip wheel setuptools
+echo "  ✓ Upgraded pip, wheel, and setuptools"
 
 echo "[01] Installing system build tools..."
 
