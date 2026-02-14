@@ -78,6 +78,12 @@ RUN python3.12 -m venv /opt/venv && \
     /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
         "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
 
+# Verify venv and hipconfig before installing wheels
+RUN echo "Verifying installation..." && \
+    ls -la /opt/venv/bin/hipconfig && \
+    /opt/venv/bin/hipconfig --version && \
+    echo "  ✓ hipconfig verified"
+
 # Install vLLM wheel only (AITER skipped for gfx1151)
 RUN /opt/venv/bin/pip install --no-deps /tmp/vllm-*.whl && \
     rm /tmp/vllm-*.whl
