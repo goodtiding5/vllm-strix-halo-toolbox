@@ -1,0 +1,31 @@
+# Docker build artifacts
+.git
+.github
+.gitignore
+.ruff_cache
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.Python
+*.so
+
+# Build artifacts from previous builds
+wheels/
+dist/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and development files
+test_vllm.py
+note.txt

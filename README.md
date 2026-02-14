@@ -18,7 +18,7 @@ This repository provides a step-by-step workflow to build vLLM from source using
 - **GPU:** AMD Strix Halo (gfx1151) - Ryzen AI MAX+ PRO 395 with Radeon 8060S
 - **RAM:** 16GB+ recommended
 - **Disk:** 30GB+ for ROCm, PyTorch, and vLLM
-- **Tools:** Distrobox, Docker (optional)
+- **Tools:** Distrobox, Docker, Docker.builder (CPU-only wheel builder)
 
 ## Quick Start
 
@@ -70,6 +70,34 @@ source /opt/venv/bin/activate
 python -c "import vllm; print(f'vLLM {vllm.__version__}')"
 vllm --version
 ```
+
+## Alternative: Docker Builder
+
+For CI/CD or building wheels on a different machine, use the Docker builder:
+
+```bash
+# Build the builder image and run all build scripts
+docker build -f Dockerfile.builder -t vllm-gfx1151-builder .
+
+# Extract wheels from builder (copies to ./wheels/)
+docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-builder \
+    bash -c "cp /workspace/wheels/*.whl /output/"
+
+# You now have:
+# - ./wheels/vllm-*.whl (52MB)
+# - ./wheels/amd_aiter-*.whl (29MB)
+```
+
+**What this does:**
+- Creates Ubuntu 24.04 container
+- Runs scripts 01-04 sequentially
+- Produces both vLLM and AITER wheels
+- All scripts execute with correct paths (`/workspace`, `/opt/venv`)
+
+**Advantages:**
+- No GPU required (builder is CPU-only)
+- Reproducible builds
+- Easy CI/CD integration
 
 ## Scripts
 
@@ -294,8 +322,10 @@ This is **expected and harmless** - vLLM will automatically use standard ROCm/Py
 ├── test.sh                    # Test API endpoint
 ├── test_vllm.py               # Python test script
 ├── .toolbox.env               # Environment configuration
+├── .dockerignore             # Docker build exclusions
 ├── docker-compose.yml         # Docker service (alternative)
 ├── Dockerfile                 # Docker build (alternative)
+├── Dockerfile.builder         # Docker wheel builder (CPU-only, runs 01-04 scripts)
 ├── cache/
 │   └── huggingface/          # Model cache
 ├── wheels/                   # Built wheels (created by 03 & 04 scripts)
