@@ -77,6 +77,10 @@ echo "  HIPFLAGS=${HIPFLAGS}"
 echo "[04d] Building vLLM wheel..."
 mkdir -p "${WHEEL_DIR}"
 
+# Install setuptools-scm for vLLM build (needed for --no-deps)
+echo "Installing build dependencies..."
+pip install "setuptools-scm>=8"
+
 # Build wheel (tcmalloc is preloaded system-wide via /etc/ld.so.preload)
 pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}"
 
