@@ -72,19 +72,14 @@ WORKDIR /workspace
 # Copy wheels from builder
 COPY --from=builder /workspace/wheels/*.whl /tmp/
 
-# Create virtual environment
-RUN python3.12 -m venv /opt/venv
-
-# Upgrade pip and install ROCm nightly packages first (to match what wheels were built against)
-RUN /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
+# Create virtual environment and install ROCm nightly packages (to match what wheels were built against)
+RUN python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
-        "rocm[libraries,devel]" \
-        "torch" \
-        "torchaudio" \
-        "torchvision"
+        "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
 
 # Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
-# Note: Wheels depend on the ROCm packages installed above
+# Note: Wheels depend on ROCm packages installed above
 RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
     rm /tmp/*.whl
 
