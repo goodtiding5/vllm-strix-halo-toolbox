@@ -33,6 +33,12 @@ else
 fi
 echo "  ✓ Created ${VENV_DIR}"
 
+# Create Python virtual environment
+echo ""
+echo "[01] Creating Python virtual environment..."
+python${PYTHON_VERSION:-3.12} -m venv "${VENV_DIR}"
+echo "  ✓ Created venv at ${VENV_DIR}"
+
 echo "[01] Installing system build tools..."
 
 # Update package lists
