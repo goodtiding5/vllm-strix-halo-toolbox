@@ -162,7 +162,7 @@ This repository uses GitHub Actions for automated Docker image builds:
 ### Workflow Features
 
 - Uses Docker Buildx for multi-platform support
-- Caches Docker layers for faster builds
+- No caching (avoids issues with venv persistence)
 - Requires `DOCKER_USERNAME` and `DOCKER_PASSWORD` secrets
 - Builds `runtime` target from multi-stage Dockerfile
 - Sets `SUDO=""` and `SKIP_VERIFICATION=true` for CPU-only builds

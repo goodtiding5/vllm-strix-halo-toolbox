@@ -56,5 +56,3 @@ jobs:
           build-args: |
             SUDO=""
             SKIP_VERIFICATION=true
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
