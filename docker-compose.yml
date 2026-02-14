@@ -1,6 +1,6 @@
 services:
   # --- BUILDER & RUNTIME ---
-  vllm-strix:
+  vllm:
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,7 +9,7 @@ services:
         VLLM_BRANCH: main
         # Crank it up to 32 to maximize your RDNA 3.5 silicon build speed
         MAX_JOBS: 32 
-    image: vllm-rocm-gfx1151:latest
+    image: vllm-rocm-dev-gfx1151:latest
     container_name: vllm-strix-halo
     privileged: true
     cap_add:
@@ -29,8 +29,6 @@ services:
       - VLLM_TARGET_DEVICE=rocm        # Bypass inference logic
       - HSA_OVERRIDE_GFX_VERSION=11.5.1 # Match the ISA in rocminfo
       - PYTORCH_ROCM_ARCH=gfx1151      # Match the Agent 2 name
-      - VLLM_USE_TRITON_FLASH_ATTN=0
-      - VLLM_LOGGING_LEVEL=DEBUG # Keep this for now to see details if it fails
     volumes:
       # Keep your models persistent on your host machine
       - ./cache/huggingface:/root/.cache/huggingface

@@ -72,11 +72,17 @@ WORKDIR /workspace
 # Copy wheels from builder
 COPY --from=builder /workspace/wheels/*.whl /tmp/
 
-# Create virtual environment and install ROCm nightly packages fresh
+# Create virtual environment and install ROCm nightly packages
 RUN python3.12 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
-        "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip
+
+# Install ROCm first (no --pre, avoids fetching many PyTorch versions)
+RUN /opt/venv/bin/pip install --no-cache-dir --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
+    "rocm[libraries,devel]"
+
+# Install PyTorch (after ROCm, uses same versions as ROCm packages depend on)
+RUN /opt/venv/bin/pip install --no-cache-dir --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
+    torch torchaudio torchvision
 
 # Verify venv and hipconfig before installing wheels
 RUN echo "Verifying installation..." && \
