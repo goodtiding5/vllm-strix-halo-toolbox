@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
     ca-certificates \
-    libgfortran13 \
+    libgfortran5 \
     libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
@@ -73,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     google-perftools \
     libatomic1 \
-    libgfortran13 \
+    libgfortran5 \
     libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
