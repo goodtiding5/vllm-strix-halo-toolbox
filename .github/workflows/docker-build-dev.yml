@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: vllm-rocm-nightly-gfx1151
+  IMAGE_NAME: vllm-rocm-dev-gfx1151
 
 jobs:
   build-and-push:
@@ -36,7 +36,7 @@ jobs:
         with:
           images: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch,suffix=-{{date 'YYYYMMDD-HHmmss'}}
+            type=ref,event=branch,suffix=-{{date 'YYYYMMDDHHmm'}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}

@@ -147,8 +147,8 @@ This repository uses GitHub Actions for automated Docker image builds:
 **Workflow:** `.github/workflows/docker-build-dev.yml`
 
 - **Trigger:** Pushes to `dev` branch
-- **Image Name:** `vllm-rocm-nightly-gfx1151`
-- **Tags:** Timestamp-based (e.g., `nightly-20250214-120000`, `latest`)
+- **Image Name:** `vllm-rocm-dev-gfx1151`
+- **Tags:** Timestamp-based (e.g., `dev-20250214120000`, `latest`)
 - **Use case:** Development builds for testing (reflects nightly ROCm packages)
 
 ### Workflow Features
