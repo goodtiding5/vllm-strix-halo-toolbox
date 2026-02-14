@@ -150,7 +150,8 @@ print(f"  Tensor device: {x.device}")
 print(f"  Tensor shape: {x.shape}")
 print(f"  Tensor sum: {x.sum().item()}")
 print("  SUCCESS: PyTorch can use the GPU!")
-PYTHON_EOF
+ENDPYTHON
+fi
 
 echo ""
 echo "[02f] Initializing ROCm SDK devel contents..."
