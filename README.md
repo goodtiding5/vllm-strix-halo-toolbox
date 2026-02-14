@@ -117,17 +117,19 @@ docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
 ```
 
 **What this does:**
-- **Stage 1 (Builder):** Same as Dockerfile.builder - builds both wheels and venv
+- **Stage 1 (Builder):** Builds vLLM and AITER wheels (against ROCm nightly)
 - **Stage 2 (Runtime):** Minimal Ubuntu 24.04 with:
-  - Python 3.12 venv at `/opt/venv` (copied from builder)
-  - vLLM and AITER wheels installed (with `--no-deps`)
+  - Python 3.12 venv at `/opt/venv` (created fresh)
+  - ROCm nightly packages installed fresh (matching builder's environment)
+  - vLLM and AITER wheels installed with `--no-deps`
   - TCMalloc preloading configured
   - PATH set to `/opt/venv/bin`
 
 **Dependency Handling:**
-- Wheels are installed with `--no-deps` to avoid version conflicts
-- ROCm packages are already installed in venv from builder stage
+- ROCm packages are installed fresh in runtime stage (not copied from builder)
+- Wheels are installed with `--no-deps` to avoid dependency conflicts
 - Ensures runtime environment matches what wheels were built against
+- ROCm SDK is installed fresh (no developer tools needed for runtime)
 
 **Advantages:**
 - Single build command produces runnable image

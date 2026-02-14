@@ -69,9 +69,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-# Copy wheels and venv from builder
+# Copy wheels from builder
 COPY --from=builder /workspace/wheels/*.whl /tmp/
-COPY --from=builder /opt/venv /opt/venv
+
+# Create virtual environment and install ROCm nightly packages fresh
+RUN python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
+        "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
+
+# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
+# Note: Wheels depend on ROCm packages installed above
+RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
+    rm /tmp/*.whl
 
 # Configure TCMalloc system-wide
 RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
@@ -81,11 +91,6 @@ RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
     else \
         echo "WARNING: TCMalloc not found"; \
     fi
-
-# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
-# Note: Wheels depend on ROCm packages already installed in venv
-RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
-    rm /tmp/*.whl
 
 # Set environment for vLLM
 ENV PATH="/opt/venv/bin:${PATH}" \
