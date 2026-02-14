@@ -120,9 +120,15 @@ docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
 - **Stage 1 (Builder):** Same as Dockerfile.builder - builds both wheels
 - **Stage 2 (Runtime):** Minimal Ubuntu 24.04 with:
   - Python 3.12 venv at `/opt/venv`
-  - vLLM and AITER wheels installed
+  - ROCm nightly packages installed (matching builder environment)
+  - vLLM and AITER wheels installed with `--no-deps`
   - TCMalloc preloading configured
   - PATH set to `/opt/venv/bin`
+
+**Dependency Handling:**
+- Wheels are installed after ROCm packages to avoid version conflicts
+- Uses `--no-deps` to prevent pip from downgrading ROCm libraries
+- Ensures runtime environment matches what wheels were built against
 
 **Advantages:**
 - Single build command produces runnable image
@@ -327,6 +333,25 @@ For compatibility with tools expecting ROCm at `/opt/rocm`:
 ```
 
 ## Troubleshooting
+
+### Dependency Version Conflicts
+
+vLLM and AITER wheels depend on specific ROCm and PyTorch versions. To avoid conflicts:
+
+**Docker Build:**
+- ROCm nightly packages are installed first (matching builder environment)
+- Wheels are installed with `--no-deps` to prevent pip from changing ROCm packages
+- Ensures runtime environment matches what wheels were built against
+
+**Manual Installation:**
+- Install ROCm packages before installing vLLM/AITER wheels
+- Use the same ROCm nightly index URL for both packages and wheels
+- Example:
+  ```bash
+  pip install --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
+      "rocm[libraries,devel]" torch torchaudio torchvision
+  pip install --no-deps vllm-*.whl
+  ```
 
 ### GPU Not Detected
 
