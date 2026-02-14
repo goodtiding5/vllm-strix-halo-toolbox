@@ -69,7 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-# Copy wheels from builder
+# Copy wheels from builder (includes pre-built AITER from wheels/ in repo)
 COPY --from=builder /workspace/wheels/*.whl /tmp/
 
 # Create virtual environment and install ROCm nightly packages

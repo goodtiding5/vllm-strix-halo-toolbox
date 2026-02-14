@@ -12,7 +12,8 @@ __pycache__
 *.so
 
 # Build artifacts from previous builds
-wheels/
+# Commented out to allow pre-built wheels for CI/CD
+# wheels/
 dist/
 build/
 
