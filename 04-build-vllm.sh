@@ -70,6 +70,16 @@ export MAX_JOBS=$(nproc)
 # Important: Set compiler flags to find device libraries
 export HIPFLAGS="--rocm-device-lib-path=${HIP_DEVICE_LIB_PATH}"
 
+# Important: Add PyTorch CMake prefix for --no-build-isolation builds
+# Without this, CMake can't find FindTorch.cmake or TorchConfig.cmake
+TORCH_CMAKE_DIR="${VENV_DIR}/lib/python3.12/site-packages/torch/share/cmake"
+if [ -d "${TORCH_CMAKE_DIR}" ]; then
+    export CMAKE_PREFIX_PATH="${TORCH_CMAKE_DIR}:${CMAKE_PREFIX_PATH:-}"
+    echo "  CMAKE_PREFIX_PATH includes: ${TORCH_CMAKE_DIR}"
+else
+    echo "  WARNING: PyTorch CMake directory not found at ${TORCH_CMAKE_DIR}"
+fi
+
 echo "  PYTORCH_ROCM_ARCH=${PYTORCH_ROCM_ARCH}"
 echo "  HIPFLAGS=${HIPFLAGS}"
 
