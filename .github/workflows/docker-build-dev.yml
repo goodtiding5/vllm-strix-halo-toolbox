@@ -58,6 +58,3 @@ jobs:
             SKIP_VERIFICATION=true
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
-          # Mount cache for venv to persist between stages
-          cache-mounts: |
-            type=cache,target=/opt/venv,id=vllm-venv

@@ -34,14 +34,14 @@ RUN chmod +x /workspace/*.sh
 # Note: Running as root, so SUDO="" (no sudo needed)
 ENV SUDO="" SKIP_VERIFICATION=true
 
-# 01: Install system tools and create venv
+# 01: Install system tools (creates /opt/venv)
 RUN /workspace/01-install-tools.sh
 
 # 02: Install ROCm and PyTorch (nightly packages)
 RUN /workspace/02-install-rocm.sh
 
 # 03: Build AITER wheel (optional, but vLLM won't use on gfx1151)
-RUN mkdir -p /opt/venv && /workspace/03-build-aiter.sh
+RUN /workspace/03-build-aiter.sh
 
 # 04: Build vLLM wheel
 RUN /workspace/04-build-vllm.sh
@@ -69,19 +69,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-# Copy wheels from builder
+# Copy wheels and venv from builder
 COPY --from=builder /workspace/wheels/*.whl /tmp/
-
-# Create virtual environment and install ROCm nightly packages (to match what wheels were built against)
-RUN python3.12 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
-        "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
-
-# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
-# Note: Wheels depend on ROCm packages installed above
-RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
-    rm /tmp/*.whl
+COPY --from=builder /opt/venv /opt/venv
 
 # Configure TCMalloc system-wide
 RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
@@ -91,6 +81,11 @@ RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
     else \
         echo "WARNING: TCMalloc not found"; \
     fi
+
+# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
+# Note: Wheels depend on ROCm packages already installed in venv
+RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
+    rm /tmp/*.whl
 
 # Set environment for vLLM
 ENV PATH="/opt/venv/bin:${PATH}" \
