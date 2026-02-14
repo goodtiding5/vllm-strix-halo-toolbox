@@ -38,11 +38,13 @@ source "${VENV_DIR}/bin/activate"
 echo "Upgrading pip, wheel, and setuptools..."
 pip install --upgrade pip wheel setuptools
 
-echo "[02a] Installing AMD nightly ROCm packages (prerelease)..."
-pip install --pre --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
-
-echo "[02b] Installing AMD nightly PyTorch packages (prerelease)..."
-pip install --pre --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision
+echo "[02a] Installing AMD nightly ROCm and PyTorch packages (prerelease)..."
+# Install all packages in one command to avoid version rollbacks
+pip install --pre --index-url "${ROCM_INDEX_URL}" \
+    "rocm[libraries,devel]" \
+    torch \
+    torchaudio \
+    torchvision
 
 echo "[02c] Checking version consistency..."
 echo "  ROCm version: $(pip show rocm | grep Version | cut -d' ' -f2)"
