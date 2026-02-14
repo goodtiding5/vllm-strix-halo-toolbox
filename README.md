@@ -1,37 +1,74 @@
-# vLLM for AMD Strix Halo (gfx1151) toolbox
+# vLLM for AMD Strix Halo (gfx1151) with Nightly ROCm
 
-Complete toolkit for building and running vLLM with AMD ROCm support for Strix Halo GPUs (gfx1151).
+Complete toolkit for building and running vLLM with AMD nightly ROCm/PyTorch for Strix Halo GPUs (gfx1151).
 
 ## Overview
 
-This repository provides two workflows for vLLM on AMD ROCm:
+This repository provides a step-by-step workflow to build vLLM from source using AMD's nightly ROCm and PyTorch packages specifically for the gfx1151 architecture (AMD Strix Halo / Ryzen AI MAX+ PRO 395).
 
-1. **Docker** - Production-ready containerized deployment
-2. **Distrobox/Toolbox** - Development environment with full build control
+**Key Features:**
+- Uses AMD nightly ROCm/PyTorch packages (gfx1151 support)
+- Step-by-step modular build scripts
+- TCMalloc to prevent memory corruption
+- AITER support documented (optional, produces wheel but vLLM won't use on gfx1151)
 
-Both workflows target AMD Strix Halo (gfx1151) GPUs and are based on ROCm 7.2 with PyTorch 2.9.1.
+## Requirements
+
+- **OS:** Ubuntu 24.04 (via Distrobox)
+- **GPU:** AMD Strix Halo (gfx1151) - Ryzen AI MAX+ PRO 395 with Radeon 8060S
+- **RAM:** 16GB+ recommended
+- **Disk:** 30GB+ for ROCm, PyTorch, and vLLM
+- **Tools:** Distrobox, Docker (optional)
 
 ## Quick Start
 
-### Docker (Recommended for Production)
+### Step 1: Create Toolbox Container
 
 ```bash
-# Build and run vLLM container
-docker compose up --build
-
-# Test the API
-./test.sh
+./00-provision-toolbox.sh -f
+distrobox enter vllm-toolbox
 ```
 
-### Distrobox/Toolbox (For Development)
+### Step 2: Install System Tools
 
 ```bash
-# 1. Create toolbox container
-./00-provision-toolbox.sh
-distrobox enter vllm-toolbox
+./01-install-tools.sh
+```
 
-# 2. Build vLLM
-./99-build-vllm.sh
+This installs:
+- Build essentials (cmake, ninja, gcc)
+- Python 3.12 with venv
+- TCMalloc (to prevent memory corruption)
+
+### Step 3: Install ROCm and PyTorch
+
+```bash
+./02-install-rocm.sh
+```
+
+This installs:
+- AMD nightly ROCm 7.11.0+ packages
+- PyTorch 2.11.0a0+ with ROCm support
+- Configures system-wide TCMalloc in `/etc/ld.so.preload`
+
+### Step 4: Build vLLM (AITER is Optional)
+
+```bash
+# Optional: Build AITER (produces wheel, but vLLM won't use on gfx1151)
+./03-build-aiter.sh
+
+# Build vLLM
+./04-build-vllm.sh
+```
+
+**Note:** AITER builds successfully and produces a wheel, but vLLM won't use it on gfx1151 since it only supports gfx9 architectures (MI300X, MI350). AITER warning at runtime is expected and harmless.
+
+### Step 5: Test vLLM
+
+```bash
+source /opt/venv/bin/activate
+python -c "import vllm; print(f'vLLM {vllm.__version__}')"
+vllm --version
 ```
 
 ## Scripts
@@ -42,157 +79,120 @@ Creates a distrobox container for vLLM development.
 
 **Usage:**
 ```bash
-./00-provision-toolbox.sh [-f|--force] [container-name]
+./00-provision-toolbox.sh [-f|--force]
 ```
 
 **Options:**
 - `-f, --force` - Destroy existing toolbox and recreate
-- `container-name` - Custom toolbox name (default: `vllm-toolbox`)
 
-**Environment Variables** (via `.toolbox.env`):
-- `BASE_IMAGE` - ROCm/PyTorch base image (default: `docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1`)
+**Base Image:** Ubuntu 24.04 (plain, for clean nightly installation)
 
-### 99-build-vllm.sh
+### 01-install-tools.sh
 
-Builds and installs vLLM from source with ROCm support.
+Installs system-level build tools and TCMalloc.
+
+**Installs:**
+- build-essential, cmake, ninja-build
+- python3.12, python3.12-venv
+- google-perftools, libgoogle-perftools-dev
+- Configures `/etc/ld.so.preload` for TCMalloc
+
+### 02-install-rocm.sh
+
+Creates Python virtual environment and installs AMD nightly ROCm/PyTorch.
+
+**Installs:**
+- ROCm 7.11.0a+ from nightly packages
+- PyTorch 2.11.0a0+ with ROCm support
+- Configures device library paths
+- Creates `/opt/rocm` symlink
+
+**Environment:**
+- Virtual env: `/opt/venv`
+- ROCm SDK: Automatically extracted from pip packages
+- GPU: gfx1151 (Strix Halo)
+
+### 03-build-aiter.sh
+
+Builds AMD AITER (AI Tensor Engine for ROCm) from source.
+
+**AITER Support Status:**
+- Supported: gfx942 (MI300X), gfx950, gfx1250, gfx12
+- **Not Supported by AITER: gfx1150, gfx1151 (Strix Halo)**
+
+**Note:** AITER builds successfully on gfx1151 but vLLM won't use it since it only supports gfx9 architectures. Runtime warning is expected and harmless.
+
+**Installs:**
+- AITER wheel: `/workspace/wheels/amd_aiter-*.whl`
+- AITER to virtual environment
 
 **Usage:**
 ```bash
-./99-build-vllm.sh [-f|--force] [--wheel]
+./03-build-aiter.sh
 ```
 
-**Options:**
-- `-f, --force` - Remove existing venv and vllm directory, rebuild from scratch
-- `--wheel` - Build wheel package (default: in-place install)
+### 04-build-vllm.sh
 
-**Environment Variables** (via `.toolbox.env`):
-- `WORK_DIR` - Workspace directory (default: `/workspace`)
-- `VLLM_VERSION` - vLLM version/branch (default: `main`)
-- `VENV_DIR` - Virtual environment path (default: `${WORK_DIR}/venv`)
-- `FORCE_REBUILD` - Force rebuild flag (default: `0`)
-- `BUILD_WHEEL` - Build wheel flag (default: `0`)
-- `PYTORCH_ROCM_ARCH` - GPU architecture (default: `gfx1151`)
-- `HSA_OVERRIDE_GFX_VERSION` - GPU version override (default: `11.5.1`)
-- `MAX_JOBS` - Parallel build jobs (default: `nproc`)
+Builds vLLM from source with ROCm support.
 
-### download-model.sh
+**Features:**
+- Clones vLLM repository (main branch)
+- Uses existing PyTorch/ROCm installation
+- Builds C++ extensions for gfx1151
+- Creates installable wheel
 
-Downloads Hugging Face models to local cache for Docker mounts.
+**Output:**
+- Wheel: `/workspace/wheels/vllm-*.whl`
+- Installation: `/opt/venv`
 
-**Usage:**
+Note: AITER also produces a wheel at `/workspace/wheels/amd_aiter-*.whl`
+
+## Configuration
+
+### .toolbox.env
+
+Environment configuration file:
+
 ```bash
-./download-model.sh [MODEL_ID]
+# Base image for toolbox
+BASE_IMAGE=docker.io/library/ubuntu:24.04
+
+# ROCm nightly repository
+ROCM_INDEX_URL=https://rocm.nightlies.amd.com/v2/gfx1151/
+
+# Workspace settings
+WORK_DIR=${HOME}/workspace
+VENV_DIR=/opt/venv
+
+# Python version
+PYTHON_VERSION=3.12
+
+# GPU architecture
+PYTORCH_ROCM_ARCH=gfx1151
 ```
 
-**Examples:**
+## Usage Examples
+
+### Start vLLM Server
+
 ```bash
-./download-model.sh                                    # Downloads default model
-./download-model.sh Qwen/Qwen2.5-Coder-32B-Instruct    # Specific model
+distrobox enter vllm-toolbox
+source /opt/venv/bin/activate
+
+# Serve a model
+vllm serve Qwen/Qwen2.5-0.5B-Instruct \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --tensor-parallel-size 1
 ```
 
-**Cache Location:** `./cache/huggingface`
+### Test API
 
-### test.sh
-
-Tests the vLLM OpenAI-compatible API server.
-
-**Usage:**
 ```bash
 ./test.sh
 ```
 
-## Docker Configuration
-
-### docker-compose.yml
-
-Defines the vLLM runtime service with:
-
-- **Base Image:** `rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1`
-- **Target GPU:** gfx1151 (Strix Halo)
-- **Ports:** 8080 (API server)
-- **Volumes:** `./cache/huggingface:/root/.cache/huggingface`
-
-**Key Environment Variables:**
-- `VLLM_TARGET_DEVICE=rocm` - Force ROCm device detection
-- `PYTORCH_ROCM_ARCH=gfx1151` - GPU architecture
-- `HSA_OVERRIDE_GFX_VERSION=11.5.1` - ISA version override
-- `VLLM_USE_TRITON_FLASH_ATTN=0` - Disable Triton attention
-
-**Build Arguments:**
-- `VLLM_BRANCH` - vLLM branch to build (default: `main`)
-- `MAX_JOBS` - Parallel build jobs (default: `32`)
-
-### Dockerfile
-
-Multi-stage build with three stages:
-
-1. **base** - ROCm/PyTorch environment setup
-2. **builder** - Compiles vLLM wheel from source
-3. **runtime** - Production image with vLLM installed
-
-**Build Stages:**
-```bash
-# Build only (no runtime)
-docker build --target builder -t vllm-builder:latest .
-
-# Full build (production)
-docker build -t vllm-rocm-gfx1151:latest .
-```
-
-## Configuration
-
-### .toolbox.env.sample
-
-Environment configuration template for toolbox workflow. Copy to `.toolbox.env` and customize:
-
-```bash
-WORK_DIR=/workspace
-VLLM_VERSION=main
-VENV_DIR=/workspace/venv
-FORCE_REBUILD=0
-BUILD_WHEEL=0
-PYTORCH_ROCM_ARCH=gfx1151
-HSA_OVERRIDE_GFX_VERSION=11.5.1
-MAX_JOBS=
-```
-
-### Docker Compose Configuration
-
-Edit `docker-compose.yml` to customize:
-
-```yaml
-services:
-  vllm-strix:
-    environment:
-      - MAX_JOBS=32  # Adjust for your CPU
-    command: >
-      vllm serve your-model-name
-      --host 0.0.0.0
-      --port 8080
-      --gpu-memory-utilization 0.95
-      --enforce-eager
-```
-
-## Model Management
-
-Models are cached in `./cache/huggingface/` and mounted into containers.
-
-**Download a model:**
-```bash
-./download-model.sh Qwen/Qwen2.5-0.5B-Instruct
-```
-
-**Use a different model in Docker:**
-Edit `docker-compose.yml` command line:
-```yaml
-command: vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080
-```
-
-## API Usage
-
-vLLM provides an OpenAI-compatible API:
-
-**Chat Completions:**
+Or manually:
 ```bash
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -202,88 +202,124 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
-**Health Check:**
+### Download Models
+
 ```bash
-curl http://localhost:8080/health
+./download-model.sh Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-## Hardware Requirements
+Models are cached in `./cache/huggingface/`
 
-- **GPU:** AMD Strix Halo (gfx1151) or compatible RDNA3+ GPU
-- **RAM:** 16GB+ minimum, 32GB+ recommended
-- **Disk:** 20GB+ for ROCm SDK, PyTorch, and vLLM
-- **CPU:** Multi-core for parallel builds
+## Key Technical Details
 
-## Development Workflow
+### Why TCMalloc?
 
-For custom vLLM modifications or debugging:
+The pip-installed ROCm SDK can cause "double free or corruption" memory errors. TCMalloc (Google's memory allocator) prevents this by replacing the standard malloc.
 
+**Configured in:** `/etc/ld.so.preload`
+
+### Device Libraries
+
+ROCm device bitcode libraries are located at:
+```
+/opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel/lib/llvm/amdgcn/bitcode/
+```
+
+These are required for compiling HIP kernels and are automatically configured.
+
+### ROCm Symlink
+
+For compatibility with tools expecting ROCm at `/opt/rocm`:
 ```bash
-# 1. Setup toolbox environment
-./00-provision-toolbox.sh -f  # Force fresh start
-distrobox enter vllm-toolbox
-
-# 2. Configure build (edit .toolbox.env as needed)
-cp .toolbox.env.sample .toolbox.env
-# Edit .toolbox.env with your settings
-
-# 3. Build vLLM
-./99-build-vllm.sh --force  # Clean rebuild
-
-# 4. Test inside toolbox
-source /workspace/venv/bin/activate
-python -c "import vllm; print(vllm.__version__)"
+/opt/rocm -> /workspace/venv/lib/python3.12/site-packages/_rocm_sdk_devel
 ```
 
 ## Troubleshooting
 
 ### GPU Not Detected
 
-**Symptom:** vLLM fails to detect ROCm GPU
+```bash
+# Check ROCm
+rocminfo | grep gfx
 
-**Solutions:**
-1. Verify ROCm installation: `rocm-smi`
-2. Check GPU architecture: `rocminfo | grep gfx`
-3. Ensure `HSA_OVERRIDE_GFX_VERSION` matches your GPU
+# Check PyTorch
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### Memory Corruption Errors
+
+TCMalloc should prevent these. If they occur:
+```bash
+# Verify TCMalloc is loaded
+cat /etc/ld.so.preload
+# Should show: /usr/lib/x86_64-linux-gnu/libtcmalloc.so.4
+```
 
 ### Build Failures
 
-**Symptom:** CMake or compilation errors
+ 1. Ensure ROCm SDK is initialized:
+    ```bash
+    rocm-sdk init
+    ```
 
-**Solutions:**
-1. Use ROCm's compiler: `export CC=/opt/rocm/llvm/bin/clang CXX=/opt/rocm/llvm/bin/clang++`
-2. Increase build jobs: `export MAX_JOBS=4` (reduce if OOM)
-3. Clean build: `./99-build-vllm.sh --force`
+ 2. Check device libraries exist:
+    ```bash
+    ls /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel/lib/llvm/amdgcn/bitcode/
+    ```
 
-### Docker Permission Issues
+ 3. Reduce parallel jobs:
+    ```bash
+    export MAX_JOBS=4
+    ```
 
-**Symptom:** Cannot access `/dev/kfd` or `/dev/dri`
+### AITER Warning at Runtime
 
-**Solution:**
-```bash
-sudo usermod -a -G video,render $USER
-# Logout and login again
+vLLM may show a warning about AITER at startup:
 ```
+WARNING: AITER is not supported on this architecture (gfx1151)
+```
+
+This is **expected and harmless** - vLLM will automatically use standard ROCm/PyTorch kernels instead. AITER only supports gfx9 architectures (MI300X, MI350), not gfx1151 (Strix Halo).
 
 ## Directory Structure
 
 ```
 .
-├── 00-provision-toolbox.sh    # Create toolbox container
-├── 99-build-vllm.sh           # Build vLLM from source
-├── download-model.sh           # Download Hugging Face models
-├── test.sh                     # Test API endpoint
-├── docker-compose.yml          # Docker service definition
-├── Dockerfile                  # Multi-stage build
-├── .toolbox.env.sample         # Environment template
+├── 00-provision-toolbox.sh    # Create distrobox container
+├── 01-install-tools.sh        # Install system build tools
+├── 02-install-rocm.sh         # Install ROCm/PyTorch nightly
+├── 03-build-aiter.sh          # AITER build (produces wheel)
+├── 04-build-vllm.sh           # Build vLLM from source
+├── download-model.sh          # Download Hugging Face models
+├── test.sh                    # Test API endpoint
+├── test_vllm.py               # Python test script
+├── .toolbox.env               # Environment configuration
+├── docker-compose.yml         # Docker service (alternative)
+├── Dockerfile                 # Docker build (alternative)
 ├── cache/
-│   └── huggingface/           # Model cache (mounted to Docker)
-└── README.md                   # This file
+│   └── huggingface/          # Model cache
+├── wheels/                   # Built wheels (created by 03 & 04 scripts)
+└── README.md                  # This file
 ```
+
+## Build Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| ROCm 7.11.0 | ✅ Working | Nightly packages for gfx1151 |
+| PyTorch 2.11.0 | ✅ Working | ROCm backend functional |
+| vLLM 0.16.0rc2 | ✅ Working | Built from source |
+| TCMalloc | ✅ Configured | Prevents memory corruption |
+| AITER | ✅ Builds | Produces wheel but vLLM won't use on gfx1151 (optional) |
 
 ## References
 
 - [vLLM](https://github.com/vllm-project/vllm) - Open source LLM inference engine
 - [ROCm](https://rocm.docs.amd.com/) - AMD's open-source GPU compute platform
+- [ROCm TheRock](https://github.com/ROCm/TheRock) - AMD's nightly build system
 - [PyTorch ROCm](https://pytorch.org/get-started/locally/) - PyTorch with AMD GPU support
-- [Distrobox](https://distrobox.privatedns.org/) - Container tool for using any Linux distribution
+- [Distrobox](https://distrobox.privatedns.org/) - Container tool for Linux distributions
+
+## License
+
+This project follows the same license as vLLM (Apache 2.0).

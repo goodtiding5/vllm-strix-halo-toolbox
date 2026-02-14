@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 01-install-tools.sh
+# Install system-level build tools and dependencies
+# Run inside the distrobox: ./01-install-tools.sh
+
+# Source environment if available
+if [ -f "$(dirname "$0")/.toolbox.env" ]; then
+  # shellcheck disable=SC1090
+  source "$(dirname "$0")/.toolbox.env"
+fi
+
+WORK_DIR="${WORK_DIR:-/workspace}"
+VENV_DIR="${VENV_DIR:-/opt/venv}"
+
+# Create workspace and venv directories with correct ownership
+echo "[01] Creating directories..."
+sudo mkdir -p "${WORK_DIR}" "${VENV_DIR}"
+sudo chown -R "${USER}:${USER}" "${WORK_DIR}" "${VENV_DIR}"
+echo "  ✓ Created ${WORK_DIR}"
+echo "  ✓ Created ${VENV_DIR}"
+
+echo "[01] Installing system build tools..."
+
+# Update package lists
+echo "Updating package lists..."
+sudo apt-get update
+
+# Install build essentials and development tools
+echo "Installing build essentials..."
+sudo apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    wget \
+    cmake \
+    ninja-build \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    software-properties-common \
+    google-perftools \
+    libgoogle-perftools-dev
+
+# Verify installations
+echo "Verifying installations..."
+echo "  CMake: $(cmake --version | head -1)"
+echo "  Ninja: $(ninja --version)"
+echo "  Python3: $(python3 --version)"
+echo "  Git: $(git --version)"
+echo "  TCMalloc: $(dpkg -l | grep google-perftools | head -1 | awk '{print $2 ":" $3}')"
+
+# Configure tcmalloc system-wide to prevent memory corruption with pip-installed ROCm
+echo ""
+echo "Configuring TCMalloc system-wide..."
+TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4"
+if [ -f "$TCMALLOC_PATH" ]; then
+    echo "$TCMALLOC_PATH" | sudo tee /etc/ld.so.preload > /dev/null
+    echo "  ✓ TCMalloc configured in /etc/ld.so.preload"
+else
+    echo "  Warning: TCMalloc library not found at expected location"
+fi
+
+echo ""
+echo "[01] System tools installation complete!"
+echo "Note: TCMalloc is configured system-wide to prevent memory corruption issues."
