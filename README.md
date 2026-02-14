@@ -127,7 +127,41 @@ docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
 **Advantages:**
 - Single build command produces runnable image
 - Runtime image is minimal (no build tools)
-- Ready-to-run with GPU access required
+- Ready to run with GPU access required
+
+## GitHub Actions CI/CD
+
+This repository uses GitHub Actions for automated Docker image builds:
+
+### Main Branch Workflows
+
+**Workflow:** `.github/workflows/docker-build-push.yml`
+
+- **Trigger:** Pushes to `main` branch or tags
+- **Image Name:** `vllm-rocm-nightly-gfx1151`
+- **Tags:** Semantic versioning (e.g., `1.0.0`, `v1.0`, `latest`)
+- **Use case:** Production releases with versioned images
+
+### Dev Branch Workflows
+
+**Workflow:** `.github/workflows/docker-build-dev.yml`
+
+- **Trigger:** Pushes to `dev` branch
+- **Image Name:** `vllm-rocm-dev-gfx1151`
+- **Tags:** Timestamp-based (e.g., `dev-20250214-120000`, `latest`)
+- **Use case:** Development builds for testing
+
+### Workflow Features
+
+- Uses Docker Buildx for multi-platform support
+- Caches Docker layers for faster builds
+- Requires `DOCKER_USERNAME` and `DOCKER_PASSWORD` secrets
+- Builds `runtime` target from multi-stage Dockerfile
+- Sets `SUDO=""` and `SKIP_VERIFICATION=true` for CPU-only builds
+
+### Manual Trigger
+
+Workflows can be manually triggered via GitHub Actions UI for on-demand builds.
 
 ## Scripts
 
