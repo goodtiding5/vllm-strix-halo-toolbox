@@ -15,6 +15,13 @@ VENV_DIR="${VENV_DIR:-${WORK_DIR}/venv}"
 VLLM_DIR="${WORK_DIR}/vllm"
 WHEEL_DIR="${WORK_DIR}/wheels"
 
+# Set SUDO based on whether running as root (Docker) or non-root (distrobox)
+if [ "$(id -u)" = "0" ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 echo "[04] Building vLLM from source for ROCm gfx1151..."
 
 # Activate virtual environment
@@ -38,8 +45,8 @@ echo "  Device Lib Path: ${HIP_DEVICE_LIB_PATH}"
 # Ensure /opt/rocm symlink exists for compatibility
 if [ ! -L "/opt/rocm" ]; then
     echo "  Creating /opt/rocm symlink..."
-    sudo mkdir -p /opt
-    sudo ln -sf "${ROCM_ROOT}" /opt/rocm
+    ${SUDO} mkdir -p /opt
+    ${SUDO} ln -sf "${ROCM_ROOT}" /opt/rocm
 fi
 
 # Step 1: Clone vLLM

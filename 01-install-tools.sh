@@ -14,22 +14,34 @@ fi
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
 
+# Set SUDO based on whether running as root (Docker) or non-root (distrobox)
+if [ "$(id -u)" = "0" ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 # Create workspace and venv directories with correct ownership
 echo "[01] Creating directories..."
-sudo mkdir -p "${WORK_DIR}" "${VENV_DIR}"
-sudo chown -R "${USER}:${USER}" "${WORK_DIR}" "${VENV_DIR}"
-echo "  ✓ Created ${WORK_DIR}"
+mkdir -p "${WORK_DIR}" "${VENV_DIR}"
+# Skip chown in Docker (running as root), but use in distrobox (needs sudo)
+if [ -n "${SUDO}" ]; then
+    ${SUDO} chown -R "${USER}:${USER}" "${WORK_DIR}" "${VENV_DIR}"
+    echo "  ✓ Created ${WORK_DIR} (ownership set)"
+else
+    echo "  ✓ Created ${WORK_DIR} (Docker, no ownership needed)"
+fi
 echo "  ✓ Created ${VENV_DIR}"
 
 echo "[01] Installing system build tools..."
 
 # Update package lists
 echo "Updating package lists..."
-sudo apt-get update
+${SUDO} apt-get update
 
 # Install build essentials and development tools
 echo "Installing build essentials..."
-sudo apt-get install -y \
+${SUDO} apt-get install -y \
     build-essential \
     git \
     curl \
@@ -60,7 +72,7 @@ echo ""
 echo "Configuring TCMalloc system-wide..."
 TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4"
 if [ -f "$TCMALLOC_PATH" ]; then
-    echo "$TCMALLOC_PATH" | sudo tee /etc/ld.so.preload > /dev/null
+    echo "$TCMALLOC_PATH" | ${SUDO} tee /etc/ld.so.preload > /dev/null
     echo "  ✓ TCMalloc configured in /etc/ld.so.preload"
 else
     echo "  Warning: TCMalloc library not found at expected location"

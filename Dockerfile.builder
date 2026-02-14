@@ -33,6 +33,9 @@ COPY . /workspace/
 RUN chmod +x /workspace/*.sh
 
 # Run build scripts sequentially
+# Note: Running as root, so SUDO="" (no sudo needed)
+ENV SUDO=""
+
 # 01: Install system tools and create venv
 RUN /workspace/01-install-tools.sh
 
