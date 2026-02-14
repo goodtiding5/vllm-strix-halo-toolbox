@@ -41,8 +41,8 @@ pip install --upgrade pip wheel setuptools
 echo "[02a] Installing AMD nightly ROCm packages..."
 pip install --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
 
-echo "[02b] Installing AMD nightly PyTorch packages..."
-pip install --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision
+echo "[02b] Installing AMD nightly PyTorch packages (prerelease)..."
+pip install --pre --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision
 
 echo "[02c] Checking version consistency..."
 echo "  ROCm version: $(pip show rocm | grep Version | cut -d' ' -f2)"

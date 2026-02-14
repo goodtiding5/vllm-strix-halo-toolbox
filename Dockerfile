@@ -86,19 +86,14 @@ RUN python3.12 -m venv /opt/venv && \
 RUN /opt/venv/bin/pip install --no-cache-dir --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
     "rocm[libraries,devel]"
 
-# Install PyTorch (after ROCm, uses same versions as ROCm packages depend on)
-RUN /opt/venv/bin/pip install --no-cache-dir --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
+# Install PyTorch (after ROCm, uses --pre for latest nightly versions)
+RUN /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
     torch torchaudio torchvision
 
-# Verify venv and hipconfig before installing wheels
-RUN echo "Verifying installation..." && \
-    ls -la /opt/venv/bin/hipconfig && \
-    /opt/venv/bin/hipconfig --version && \
-    echo "  ✓ hipconfig verified"
-
-# Install vLLM wheel only (AITER skipped for gfx1151)
-RUN /opt/venv/bin/pip install --no-deps /tmp/vllm-*.whl && \
-    rm /tmp/vllm-*.whl
+# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
+# Note: Wheels depend on ROCm packages installed above
+RUN /opt/venv/bin/pip install --no-deps /tmp/vllm-*.whl /tmp/amd_aiter-*.whl && \
+    rm /tmp/vllm-*.whl /tmp/amd_aiter-*.whl
 
 # Configure TCMalloc system-wide
 RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
