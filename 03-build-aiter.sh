@@ -89,14 +89,8 @@ mkdir -p "${WHEEL_DIR}"
 
 # Build AITER wheel
 # Note: Using --no-build-isolation to use existing environment with rocm_sdk installed
-# We pass environment variables via --global-option since isolated subprocess doesn't inherit PATH
 echo "Building AITER wheel (using no-build-isolation)..."
-pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}" \
-    --global-option="build" --global-option="-- ROCM_PATH=${ROCM_HOME}" \
-    --global-option="build" --global-option="-- PYTORCH_ROCM_ARCH=${GPU_TARGET}" \
-    --global-option="build" --global-option="-- PATH=${VENV_DIR}/bin" \
-    --global-option="build" --global-option="-- PYTHONPATH=${VENV_DIR}/lib/python3.12/site-packages" \
-    || echo "AITER build failed - vLLM will work without it"
+pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}" || echo "AITER build failed - vLLM will work without it"
 
 # Find the built wheel
 AITER_WHEEL=$(ls -t "${WHEEL_DIR}"/amd_aiter-*.whl 2>/dev/null | head -1)
