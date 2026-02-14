@@ -78,10 +78,9 @@ RUN python3.12 -m venv /opt/venv && \
     /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
         "rocm[libraries,devel]" "torch" "torchaudio" "torchvision"
 
-# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
-# Note: Wheels depend on ROCm packages installed above
-RUN /opt/venv/bin/pip install --no-deps /tmp/*.whl && \
-    rm /tmp/*.whl
+# Install vLLM wheel only (AITER skipped for gfx1151)
+RUN /opt/venv/bin/pip install --no-deps /tmp/vllm-*.whl && \
+    rm /tmp/vllm-*.whl
 
 # Configure TCMalloc system-wide
 RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
