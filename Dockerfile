@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
     ca-certificates \
+    libgfortran13 \
+    libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
@@ -71,6 +73,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     google-perftools \
     libatomic1 \
+    libgfortran13 \
+    libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

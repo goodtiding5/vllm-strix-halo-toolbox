@@ -68,7 +68,9 @@ ${SUDO} apt-get install -y \
     libffi-dev \
     software-properties-common \
     google-perftools \
-    libgoogle-perftools-dev
+    libgoogle-perftools-dev \
+    libgfortran-\$(grep -Po '^GCC: \K[^.]+' /usr/lib/gcc/x86_64-linux-gnu/README.gcc) \
+    libgomp1
 
 # Verify installations
 echo "Verifying installations..."
