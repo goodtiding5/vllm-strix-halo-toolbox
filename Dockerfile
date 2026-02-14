@@ -41,7 +41,7 @@ RUN /workspace/01-install-tools.sh
 RUN /workspace/02-install-rocm.sh
 
 # 03: Build AITER wheel (optional, but vLLM won't use on gfx1151)
-RUN /workspace/03-build-aiter.sh
+RUN mkdir -p /opt/venv && /workspace/03-build-aiter.sh
 
 # 04: Build vLLM wheel
 RUN /workspace/04-build-vllm.sh

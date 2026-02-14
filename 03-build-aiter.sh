@@ -39,7 +39,13 @@ echo "  If build fails, vLLM will still work using standard ROCm kernels"
 echo ""
 
 # Activate virtual environment
-source "${VENV_DIR}/bin/activate"
+if [ -f "${VENV_DIR}/bin/activate" ]; then
+    source "${VENV_DIR}/bin/activate"
+else
+    echo "ERROR: Virtual environment not found at ${VENV_DIR}"
+    echo "This should have been created by 01-install-tools.sh"
+    exit 1
+fi
 
 # Clone AITER repository
 if [ -d "${AITER_DIR}" ]; then
