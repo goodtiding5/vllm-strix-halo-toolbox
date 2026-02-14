@@ -23,10 +23,10 @@ fi
 
 # Create workspace and venv directories with correct ownership
 echo "[01] Creating directories..."
-mkdir -p "${WORK_DIR}" "${VENV_DIR}"
+${SUDO} mkdir -p "${WORK_DIR}" "${VENV_DIR}"
 # Skip chown in Docker (running as root), but use in distrobox (needs sudo)
 if [ -n "${SUDO}" ]; then
-    ${SUDO} chown -R "${USER}:${USER}" "${WORK_DIR}" "${VENV_DIR}"
+    ${SUDO} chown -R "${USER}" "${WORK_DIR}" "${VENV_DIR}"
     echo "  ✓ Created ${WORK_DIR} (ownership set)"
 else
     echo "  ✓ Created ${WORK_DIR} (Docker, no ownership needed)"
