@@ -19,6 +19,12 @@ jobs:
       - name: Free up disk space
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/miniconda
+          sudo docker system prune -af --volumes || true
+          sudo apt-get clean
+          sudo apt-get autoremove -y
           df -h
 
       - name: Set up Docker Buildx
