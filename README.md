@@ -138,7 +138,7 @@ This repository uses GitHub Actions for automated Docker image builds:
 **Workflow:** `.github/workflows/docker-build-push.yml`
 
 - **Trigger:** Pushes to `main` branch or tags
-- **Image Name:** `vllm-rocm-nightly-gfx1151`
+- **Image Name:** `vllm-rocm-gfx1151`
 - **Tags:** Semantic versioning (e.g., `1.0.0`, `v1.0`, `latest`)
 - **Use case:** Production releases with versioned images
 
@@ -147,9 +147,9 @@ This repository uses GitHub Actions for automated Docker image builds:
 **Workflow:** `.github/workflows/docker-build-dev.yml`
 
 - **Trigger:** Pushes to `dev` branch
-- **Image Name:** `vllm-rocm-dev-gfx1151`
-- **Tags:** Timestamp-based (e.g., `dev-20250214-120000`, `latest`)
-- **Use case:** Development builds for testing
+- **Image Name:** `vllm-rocm-nightly-gfx1151`
+- **Tags:** Timestamp-based (e.g., `nightly-20250214-120000`, `latest`)
+- **Use case:** Development builds for testing (reflects nightly ROCm packages)
 
 ### Workflow Features
 

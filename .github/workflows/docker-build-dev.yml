@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: vllm-rocm-dev-gfx1151
+  IMAGE_NAME: vllm-rocm-nightly-gfx1151
 
 jobs:
   build-and-push:
