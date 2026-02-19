@@ -1,29 +1,20 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Stage 1: Builder - Build vLLM and AITER wheels
+# Stage 1: Builder - Build vLLM, AITER, and Flash Attention wheels
 # =============================================================================
 
-FROM ubuntu:24.04 AS builder
+FROM docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1 AS builder
 
 LABEL maintainer="ken@epenguin.com" \
-      description="vLLM and AITER wheels builder for AMD gfx1151"
+      description="vLLM wheels builder for AMD gfx1151"
 
-# Install basic dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    python3.12 \
-    python3.12-venv \
-    wget \
-    curl \
-    ca-certificates \
-    libgfortran5 \
-    libgomp1 \
- && rm -rf /var/lib/apt/lists/*
+# Build arguments for version control (can be overridden in docker-compose)
+ARG VLLM_VERSION=main
+ARG AITER_VERSION=main
+ARG FA_VERSION=main_perf
 
+# Create workspace directory
 WORKDIR /workspace
 
 # Copy entire project to workspace
@@ -32,94 +23,78 @@ COPY . /workspace/
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
 
-# Run build scripts sequentially
+# Set environment variables (fallback if .toolbox.env is not available)
 # Note: Running as root, so SUDO="" (no sudo needed)
-ENV SUDO="" SKIP_VERIFICATION=true
+# Note: CPU-only environment, no GPU detection available
+ENV SUDO="" \
+    SKIP_VERIFICATION=true \
+    VENV_DIR=/opt/venv \
+    ROCM_HOME=/opt/rocm \
+    WORK_DIR=/workspace \
+    GPU_TARGET=gfx1151 \
+    GFX_VERSION=11.5.1 \
+    VLLM_VERSION=${VLLM_VERSION} \
+    AITER_VERSION=${AITER_VERSION} \
+    FA_VERSION=${FA_VERSION}
 
-# 01: Install system tools (creates /opt/venv)
-RUN /workspace/01-install-tools.sh
+# Build vLLM wheel (with BUILD_FA=0 for gfx1151 compatibility)
+RUN /workspace/02-build-vllm.sh --wheel
 
-# 02: Install ROCm and PyTorch (nightly packages)
-RUN /workspace/02-install-rocm.sh
+# Build AITER wheel
+RUN /workspace/03-build-aiter.sh --wheel
 
-# 03: Build AITER wheel (optional, skip if pre-built wheel exists in wheels/)
-RUN if [ -f "/workspace/wheels/amd_aiter-*.whl" ]; then \
-      echo "[03] AITER wheel already exists, skipping build"; \
-    else \
-      echo "[03] Pre-built AITER wheel not found, building..."; \
-      /workspace/03-build-aiter.sh; \
-    fi
+# Build Flash Attention wheel
+RUN /workspace/04-build-fa.sh --wheel
 
-# 04: Build vLLM wheel
-RUN /workspace/04-build-vllm.sh
-
-# Set output path for easy access
-ENV WHEELS_DIR=/workspace/wheels
+# Show what was built
+RUN echo "=== Build Complete ===" \
+ && echo "" \
+ && echo "Built wheels:" \
+ && ls -lh /workspace/wheels/
 
 # =============================================================================
-# Stage 2: Runtime - Create minimal runtime environment with vLLM and AITER
+# Stage 2: Release - Runtime image with installed wheels
 # =============================================================================
 
-FROM ubuntu:24.04 AS runtime
+FROM docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1 AS release
 
 LABEL maintainer="ken@epenguin.com" \
-      description="vLLM runtime for AMD gfx1151"
+      description="vLLM runtime for AMD gfx1151 (Strix Halo)"
 
-# Install minimal runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3.12-venv \
-    curl \
-    ca-certificates \
-    google-perftools \
-    libatomic1 \
-    libgfortran5 \
-    libgomp1 \
- && rm -rf /var/lib/apt/lists/*
+# Set runtime environment variables for ROCm
+ENV GPU_TARGET=gfx1151 \
+    GFX_VERSION=11.5.1 \
+    HSA_OVERRIDE_GFX_VERSION=11.5.1 \
+    PYTORCH_ROCM_ARCH=gfx1151 \
+    ROCM_HOME=/opt/rocm \
+    VENV_DIR=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
 
-WORKDIR /workspace
+# Copy wheels from builder stage
+COPY --from=builder /workspace/wheels/*.whl /tmp/wheels/
 
-# Copy wheels from builder (includes pre-built AITER from wheels/ in repo)
-COPY --from=builder /workspace/wheels/*.whl /tmp/
-
-# Create virtual environment and install ROCm nightly packages
-RUN python3.12 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip
-
-# Install ROCm first (no --pre, avoids fetching many PyTorch versions)
-RUN /opt/venv/bin/pip install --no-cache-dir --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
-    "rocm[libraries,devel]"
-
-# Install PyTorch (after ROCm, uses --pre for latest nightly versions)
-RUN /opt/venv/bin/pip install --no-cache-dir --pre --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
-    torch torchaudio torchvision
-
-# Install vLLM and AITER wheels with --no-deps to avoid dependency conflicts
-# Note: Wheels depend on ROCm packages installed above
-RUN /opt/venv/bin/pip install --no-deps /tmp/vllm-*.whl /tmp/amd_aiter-*.whl && \
-    rm /tmp/vllm-*.whl /tmp/amd_aiter-*.whl
-
-# Configure TCMalloc system-wide
-RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
-    if [ -f "$TCMALLOC_PATH" ]; then \
-        echo "$TCMALLOC_PATH" | tee /etc/ld.so.preload > /dev/null && \
-        echo "TCMalloc configured: $(cat /etc/ld.so.preload)"; \
-    else \
-        echo "WARNING: TCMalloc not found"; \
-    fi
-
-# Set environment for vLLM
-ENV PATH="/opt/venv/bin:${PATH}" \
-    PYTHONPATH="/opt/venv/lib/python3.12/site-packages" \
-    HSA_OVERRIDE_GFX_VERSION="11.5.1" \
-    VLLM_TARGET_DEVICE="rocm"
+# Install wheels in dependency order:
+# 1. Flash Attention (base kernel library)
+# 2. AITER (AMD optimized kernels)
+# 3. vLLM (main package)
+RUN source /opt/venv/bin/activate \
+ && echo "Installing Flash Attention..." \
+ && pip install --no-cache-dir /tmp/wheels/flash_attn-*.whl \
+ && echo "Installing AITER..." \
+ && pip install --no-cache-dir /tmp/wheels/amd_aiter-*.whl \
+ && echo "Installing vLLM..." \
+ && pip install --no-cache-dir /tmp/wheels/vllm-*.whl \
+ && echo "Cleaning up..." \
+ && rm -rf /tmp/wheels \
+ && pip cache purge
 
 # Verify installation
-RUN /opt/venv/bin/python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" && \
-    pip list | grep -E "(vllm|amd-aiter)"
+RUN echo "=== Verifying Installation ===" \
+ && source /opt/venv/bin/activate \
+ && python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" \
+ && python -c "import flash_attn; print(f'Flash Attention installed')" \
+ && python -c "import aiter; print(f'AITER installed')" \
+ && echo "=== All components verified ==="
 
-# Expose default port for vLLM API server
-EXPOSE 8080
-
-# Default command - show help or start server
-CMD ["/opt/venv/bin/vllm", "--help"]
+# Default command
+CMD ["/bin/bash"]

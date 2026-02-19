@@ -5,23 +5,10 @@
 # =============================================================================
 
 # Use Ubuntu 24.04 as base (same as toolbox)
-FROM ubuntu:24.04 AS builder
+FROM docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1 AS builder
 
 LABEL maintainer="ken@epenguin.com" \
       description="vLLM and AITER wheels builder for AMD gfx1151"
-
-# Install basic dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    python3.12 \
-    python3.12-venv \
-    wget \
-    curl \
-    ca-certificates \
- && rm -rf /var/lib/apt/lists/*
 
 # Create workspace directory
 WORKDIR /workspace
@@ -32,21 +19,28 @@ COPY . /workspace/
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
 
-# Run build scripts sequentially
+# Set environment variables (fallback if .toolbox.env is not available)
 # Note: Running as root, so SUDO="" (no sudo needed)
-ENV SUDO="" SKIP_VERIFICATION=true
+# Note: CPU-only environment, no GPU detection available
+ENV SUDO="" \
+    SKIP_VERIFICATION=true \
+    VENV_DIR=/opt/venv \
+    ROCM_HOME=/opt/rocm \
+    WORK_DIR=/workspace \
+    GPU_TARGET=gfx1151 \
+    GFX_VERSION=11.5.1 \
+    VLLM_VERSION=main \
+    AITER_VERSION=main \
+    FA_VERSION=main_perf
 
-# 01: Install system tools and create venv
-RUN /workspace/01-install-tools.sh
+# Build vLLM wheel
+RUN /workspace/02-build-vllm.sh --wheel
 
-# 02: Install ROCm and PyTorch (nightly packages)
-RUN /workspace/02-install-rocm.sh
+# Build AITER wheel
+RUN /workspace/03-build-aiter.sh --wheel
 
-# 03: Build AITER wheel (optional, but vLLM won't use on gfx1151)
-RUN /workspace/03-build-aiter.sh
-
-# 04: Build vLLM wheel
-RUN /workspace/04-build-vllm.sh
+# Build Flash Attention wheel
+RUN /workspace/04-build-fa.sh --wheel
 
 # Set output path for easy access
 ENV WHEELS_DIR=/workspace/wheels

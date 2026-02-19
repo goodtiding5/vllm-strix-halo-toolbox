@@ -1,41 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 03-build-aiter.sh
-# AMD AITER build script for gfx1151 (Strix Halo)
-#
-# WARNING: AITER may not be compatible with gfx1151 (Strix Halo) GPU.
-#
-# Reason: AITER contains inline AMD GPU assembly instructions (e.g., v_pk_mul_f32)
-# that may not be supported on gfx1151 architecture. AITER is designed for datacenter
-# GPUs like MI300X (gfx942), MI350 (gfx950), and gfx12 series.
-#
-# vLLM works perfectly WITHOUT AITER - it's an optional performance optimization
-# library. All core vLLM functionality is fully operational on gfx1151.
-#
-# Supported AITER GPUs: gfx942, gfx950, gfx1250, gfx12*
-# Potentially unsupported: gfx1150, gfx1151 (Strix Halo)
-#
-# To use AITER when support is added in the future:
-#   export VLLM_ROCM_USE_AITER=1
-
 # Source environment if available
 if [ -f "$(dirname "$0")/.toolbox.env" ]; then
   source "$(dirname "$0")/.toolbox.env"
 fi
 
-WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
+ROCM_HOME="${ROCM_HOME:-/opt/rocm}"
+WORK_DIR="${WORK_DIR:-/workspace}"
 AITER_DIR="${WORK_DIR}/aiter"
+AITER_VERSION="${AITER_VERSION:-main}"
 WHEEL_DIR="${WORK_DIR}/wheels"
 GPU_TARGET="${GPU_TARGET:-gfx1151}"
+GFX_VERSION="${GFX_VERSION:-11.5.1}"
 
-echo "[03] Building AMD AITER..."
+usage() {
+  cat <<'USAGE'
+Usage: 03-build-aiter.sh [-f|--force] [--wheel] [--help]
+
+Options:
+  -f, --force    Remove ${AITER_DIR} and start fresh
+  --wheel        Build wheel (default: in-place install)
+  --help         Show this help and exit
+
+Build AMD AITER from source for ROCm with gfx1151 support.
+USAGE
+}
+
+FORCE_REBUILD=0
+BUILD_WHEEL=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--force)
+      FORCE_REBUILD=1
+      shift
+      ;;
+    --wheel)
+      BUILD_WHEEL=1
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+echo "[Step 1] Building AMD AITER..."
 echo "  GPU Target: ${GPU_TARGET}"
+echo "  GFX Version: ${GFX_VERSION}"
 echo "  AITER Dir: ${AITER_DIR}"
-echo ""
-echo "⚠️  WARNING: AITER may not be compatible with gfx1151 (Strix Halo)"
-echo "  If build fails, vLLM will still work using standard ROCm kernels"
 echo ""
 
 # Activate virtual environment
@@ -43,89 +64,68 @@ if [ -f "${VENV_DIR}/bin/activate" ]; then
     source "${VENV_DIR}/bin/activate"
 else
     echo "ERROR: Virtual environment not found at ${VENV_DIR}"
-    echo "This should have been created by 01-install-tools.sh"
     exit 1
+fi
+
+# Force: remove aiter directory
+if [ "${FORCE_REBUILD}" = "1" ]; then
+  echo "Force: removing ${AITER_DIR}..."
+  rm -rf "${AITER_DIR}"
 fi
 
 # Clone AITER repository
 if [ -d "${AITER_DIR}" ]; then
     echo "AITER directory exists, pulling latest changes..."
     cd "${AITER_DIR}"
-    git pull origin main || true
+    git fetch origin
+    git checkout "${AITER_VERSION}"
+    # Only pull if it's a branch, not a tag
+    if git show-ref --verify "refs/remotes/origin/${AITER_VERSION}" > /dev/null 2>&1; then
+	git pull origin "${AITER_VERSION}"
+    fi
 else
     echo "Cloning AITER repository..."
-    git clone https://github.com/ROCm/aiter.git "${AITER_DIR}"
+    git clone --branch "${AITER_VERSION}" https://github.com/ROCm/aiter.git "${AITER_DIR}"
     cd "${AITER_DIR}"
 fi
 
-# Explicitly set ROCm architecture to gfx1151
-echo "Setting ROCm architecture..."
+# Explicitly set ROCm architecture
 export PYTORCH_ROCM_ARCH="${GPU_TARGET}"
-echo "  PYTORCH_ROCM_ARCH=${PYTORCH_ROCM_ARCH}"
-
-# Set ROCm paths for AITER
-echo "Setting ROCm paths..."
-export ROCM_HOME="${VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel"
+export HSA_OVERRIDE_GFX_VERSION="${GFX_VERSION}"
 export ROCM_PATH="${ROCM_HOME}"
-export PATH="${VENV_DIR}/bin:${PATH}"
-echo "  ROCM_HOME=${ROCM_HOME}"
-echo "  PATH includes ${VENV_DIR}/bin"
 
 # Verify ROCm SDK is initialized and hipconfig exists
 echo ""
 echo "Verifying ROCm SDK initialization..."
-HIPCONFIG="${VENV_DIR}/bin/hipconfig"
+HIPCONFIG="${ROCM_HOME}/bin/hipconfig"
 if [ ! -f "${HIPCONFIG}" ]; then
     echo "ERROR: hipconfig not found at ${HIPCONFIG}"
-    echo "  This means rocm-sdk init was not run successfully"
-    echo "  Expected by: 02-install-rocm.sh"
-    echo "  Exiting AITER build (vLLM will work without it)"
-    exit 0
+    exit 1
 fi
 echo "  ✓ hipconfig found at ${HIPCONFIG}"
 
 # Create wheels directory
 mkdir -p "${WHEEL_DIR}"
 
-# Build AITER wheel
-# Note: Using --no-build-isolation to use existing environment with rocm_sdk installed
-echo "Building AITER wheel (using no-build-isolation)..."
-pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}" || echo "AITER build failed - vLLM will work without it"
-
-# Find the built wheel
-AITER_WHEEL=$(ls -t "${WHEEL_DIR}"/amd_aiter-*.whl 2>/dev/null | head -1)
-if [ -z "${AITER_WHEEL}" ]; then
-    echo "WARNING: Failed to find built AITER wheel - vLLM will work without it"
-else
-    echo ""
-    echo "  ✓ AITER wheel built: ${AITER_WHEEL}"
+# Build AITER
+if [ "${BUILD_WHEEL}" = "1" ]; then
+    # Build wheel
+    echo "Building AITER wheel (using no-build-isolation)..."
+    pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}"
     
-    # Install AITER from wheel
-    echo ""
-    echo "Installing AITER from wheel..."
-    pip install "${AITER_WHEEL}"
-fi
-
-echo ""
-echo "[03] AITER build complete!"
-echo ""
-echo "Verifying installation..."
-source "${VENV_DIR}/bin/activate"
-if pip show amd-aiter >/dev/null 2>&1; then
-    echo "  ✅ AITER: Successfully installed"
-    pip show amd-aiter | grep "^Name:" && pip show amd-aiter | grep "^Version:"
-    if [ -n "${AITER_WHEEL}" ]; then
-        echo "  📦 Wheel: ${AITER_WHEEL}"
+    # Find the built wheel
+    AITER_WHEEL=$(ls -t "${WHEEL_DIR}"/amd_aiter-*.whl 2>/dev/null | head -1)
+    if [ -z "${AITER_WHEEL}" ]; then
+        echo "WARNING: Failed to find built AITER wheel"
+    else
+        echo ""
+        echo "  ✓ AITER wheel built: ${AITER_WHEEL}"
     fi
 else
-    echo "  ⚠️  AITER: Build failed - vLLM will work without it"
+    # In-place install
+    echo "Installing AITER in-place (using no-build-isolation)..."
+    pip install -e . --no-build-isolation --no-deps
 fi
+
 echo ""
-echo "Current Status:"
-echo "  ✅ vLLM: Can be built with or without AITER"
-echo "  ✅ PyTorch: ROCm backend functional"
-echo ""
-echo "To proceed with vLLM:"
-echo "  distrobox enter vllm-toolbox"
-echo "  source /opt/venv/bin/activate"
-echo "  ./04-build-vllm.sh"
+echo "[Done] AITER build complete!"

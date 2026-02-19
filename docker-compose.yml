@@ -4,12 +4,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime
       args:
-        VLLM_BRANCH: main
+        # Version arguments for building wheels (match Dockerfile defaults)
+        VLLM_VERSION: main
+        AITER_VERSION: main
+        FA_VERSION: main_perf
         # Crank it up to 32 to maximize your RDNA 3.5 silicon build speed
         MAX_JOBS: 32 
-    image: vllm-rocm-dev-gfx1151:latest
+    image: openmtx/vllm-rocm-dev-gfx1151:latest
     container_name: vllm-strix-halo
     privileged: true
     cap_add:
