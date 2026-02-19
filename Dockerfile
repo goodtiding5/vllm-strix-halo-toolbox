@@ -93,7 +93,7 @@ RUN echo "=== Verifying Installation ===" \
  && . /opt/venv/bin/activate \
  && python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" \
  && pip show flash-attn | grep Version \
- && python -c "import aiter; print(f'AITER installed')" \
+ && pip show amd-aiter | grep Version \
  && echo "=== All components verified ==="
 
 # Default command
