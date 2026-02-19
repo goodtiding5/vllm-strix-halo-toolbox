@@ -1,15 +1,14 @@
-name: Build and Push Docker Image (Main Branch)
+name: Build and Push Docker Image
 
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
+      - dev
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: vllm-rocm-gfx1151
+  IMAGE_NAME: vllm-rocm-dev-gfx1151
 
 jobs:
   build-and-push:
@@ -44,11 +43,8 @@ jobs:
         with:
           images: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDDHHmm'}}
           flavor: |
             latest=false
 
@@ -57,7 +53,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          target: runtime
+          target: release
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
