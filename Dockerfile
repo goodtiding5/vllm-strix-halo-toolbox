@@ -30,6 +30,7 @@ ENV SUDO="" \
     SKIP_VERIFICATION=true \
     VENV_DIR=/opt/venv \
     ROCM_HOME=/opt/rocm \
+    ROCM_PATH=/opt/rocm \
     WORK_DIR=/workspace \
     GPU_TARGET=gfx1151 \
     GFX_VERSION=11.5.1 \
@@ -67,6 +68,7 @@ ENV GPU_TARGET=gfx1151 \
     HSA_OVERRIDE_GFX_VERSION=11.5.1 \
     PYTORCH_ROCM_ARCH=gfx1151 \
     ROCM_HOME=/opt/rocm \
+    ROCM_PATH=/opt/rocm \
     VENV_DIR=/opt/venv \
     PATH="/opt/venv/bin:${PATH}"
 

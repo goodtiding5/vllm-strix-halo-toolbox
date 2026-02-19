@@ -31,6 +31,7 @@ services:
       - VLLM_TARGET_DEVICE=rocm        # Bypass inference logic
       - HSA_OVERRIDE_GFX_VERSION=11.5.1 # Match the ISA in rocminfo
       - PYTORCH_ROCM_ARCH=gfx1151      # Match the Agent 2 name
+      - VLLM_LOGGING_LEVEL=DEBUG       # Enable debug logging for diagnosis
     volumes:
       # Keep your models persistent on your host machine
       - ./cache/huggingface:/root/.cache/huggingface

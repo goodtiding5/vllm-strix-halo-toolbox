@@ -86,7 +86,6 @@ export PYTORCH_ROCM_ARCH="${GPU_TARGET}"
 export HSA_OVERRIDE_GFX_VERSION="${GFX_VERSION}"
 export MAX_JOBS=$(nproc)
 export PIP_EXTRA_INDEX_URL=""
-
 export ROCM_PATH="${ROCM_HOME}"
 
 # Disable CK-based flash-attention (not supported on gfx1151)
