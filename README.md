@@ -1,6 +1,8 @@
-# vLLM for AMD Strix Halo (gfx1151) with ROCm
+# vLLM for AMD Strix Halo (gfx1151)
 
-Complete toolkit for building and running vLLM with ROCm/PyTorch for Strix Halo GPUs (gfx1151).
+[![Build and Push Docker Image](https://github.com/openmtx/vllm-strix-halo-toolbox/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/openmtx/vllm-strix-halo-toolbox/actions/workflows/docker-build-push.yml)
+
+Docker-based build system for running vLLM on AMD Strix Halo GPUs (gfx1151 architecture).
 
 ## Overview
 
@@ -15,11 +17,19 @@ This repository provides a workflow to build vLLM from source for the gfx1151 ar
 
 ## Requirements
 
-- **OS:** Ubuntu 24.04 (via Distrobox)
+- **OS:** Ubuntu 24.04 (host or container)
 - **GPU:** AMD Strix Halo (gfx1151) - Ryzen AI MAX+ PRO 395 with Radeon 8060S
-- **RAM:** 16GB+ recommended
-- **Disk:** 30GB+ for ROCm, PyTorch, and vLLM
-- **Tools:** Distrobox, Docker, Docker.builder (CPU-only wheel builder)
+- **RAM:** 16GB+ recommended (32GB+ for larger models)
+- **Disk:** 50GB+ for ROCm, PyTorch, and vLLM
+- **Tools:** Docker 24.0+, Docker Compose 2.0+
+
+## Architecture
+
+**gfx1151** is AMD's GPU architecture for Strix Halo APUs. It requires:
+- ROCm 7.2+ with gfx1151 support
+- PyTorch 2.9+ compiled for ROCm
+- Target architecture: `gfx1151`
+- GPU version: `11.5.1`
 
 ## Quick Start
 
@@ -37,13 +47,22 @@ docker compose up -d
 
 ### Build Process
 
-We initially attempted to build vLLM using ROCm and PyTorch nightly pip releases in a CPU-only environment, but this approach failed due to build environment complexities. We successfully pivoted to using the official `rocm/pytorch` Docker image as the base, which provides:
+**Evolution of Our Approach:**
 
-- Pre-installed ROCm 7.2.0
+We initially attempted to build vLLM using ROCm and PyTorch nightly pip releases in a CPU-only environment. While this approach works for some configurations, we encountered build complexities with vLLM's C++ extensions and ROCm toolchain integration.
+
+**Our Solution:**
+
+We successfully pivoted to using the official `rocm/pytorch` Docker image as the base, which provides:
+- Pre-installed ROCm 7.2.0 with working toolchain
 - PyTorch 2.9.1 with ROCm support
-- Working build toolchain
+- Properly configured build environment
 
-This approach allows building all components (Flash Attention, AITER, and vLLM) for gfx1151 in a CPU-only environment without requiring GPU access during the build process.
+This approach allows building all components (Flash Attention, AITER, and vLLM) for gfx1151 in a **CPU-only environment** without requiring GPU access during the build process. The build:
+- Compiles for `gfx1151` architecture using HIP compiler
+- Generates GPU binaries ahead of time
+- Works in CI/CD and cloud environments
+- Produces portable wheels for distribution
 
 ### Build Scripts
 
@@ -235,26 +254,53 @@ Note: AITER also produces a wheel at `/workspace/wheels/amd_aiter-*.whl`
 
 ## Configuration
 
-### .toolbox.env
+### Environment Variables
 
-Environment configuration file:
+Key environment variables for building and runtime:
 
 ```bash
-# Base image for toolbox
-BASE_IMAGE=docker.io/library/ubuntu:24.04
+# Required for runtime
+ROCM_HOME=/opt/rocm
+PYTORCH_ROCM_ARCH=gfx1151
+HSA_OVERRIDE_GFX_VERSION=11.5.1
 
-# ROCm nightly repository
-ROCM_INDEX_URL=https://rocm.nightlies.amd.com/v2/gfx1151/
+# Optional build settings
+MAX_JOBS=4                    # Build parallelism (default: nproc)
+GPU_TARGET=gfx1151           # Target architecture
+```
+
+### Build Arguments
+
+When building with Docker, you can customize versions:
+
+```bash
+docker build \
+  --build-arg VLLM_VERSION=main \
+  --build-arg AITER_VERSION=main \
+  --build-arg FA_VERSION=main_perf \
+  -t vllm-gfx1151 .
+```
+
+### .toolbox.env
+
+Environment configuration file for manual builds:
+
+```bash
+# Base image
+BASE_IMAGE=docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1
+
+# GPU settings
+GPU_TARGET=gfx1151
+GFX_VERSION=11.5.1
 
 # Workspace settings
-WORK_DIR=${HOME}/workspace
+WORK_DIR=/workspace
 VENV_DIR=/opt/venv
 
-# Python version
-PYTHON_VERSION=3.12
-
-# GPU architecture
-PYTORCH_ROCM_ARCH=gfx1151
+# Version overrides
+VLLM_VERSION=main
+AITER_VERSION=main
+FA_VERSION=main_perf
 ```
 
 ## Usage Examples
@@ -371,20 +417,28 @@ cat /etc/ld.so.preload
 
 ### Build Failures
 
- 1. Ensure ROCm SDK is initialized:
-    ```bash
-    rocm-sdk init
-    ```
+**CMake can't find Torch:**
+```bash
+export Torch_DIR=/opt/venv/lib/python3.12/site-packages/torch/share/cmake/Torch
+```
 
- 2. Check device libraries exist:
-    ```bash
-    ls /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel/lib/llvm/amdgcn/bitcode/
-    ```
+**GPU architecture detection fails:**
+Ensure you're using the Docker-based build or set `GPU_TARGET=gfx1151` explicitly.
 
- 3. Reduce parallel jobs:
-    ```bash
-    export MAX_JOBS=4
-    ```
+**Out of memory during build:**
+```bash
+# Reduce parallel jobs
+export MAX_JOBS=4
+```
+
+**ROCm SDK issues:**
+```bash
+# Check ROCm installation
+ls /opt/rocm/bin/rocminfo
+
+# Verify device libraries
+ls /opt/rocm/lib/llvm/amdgcn/bitcode/
+```
 
 ### AITER Warning at Runtime
 
@@ -489,6 +543,17 @@ docker run -d \
 - **Load Time:** ~0.25 seconds
 - **VRAM Usage:** 1.0 GB (38% of total)
 - **Backend:** Triton Attention (ROCm)
+
+## Acknowledgments
+
+This project is based on pioneering work by **Donato Capitella** ([amd-strix-halo-vllm-toolboxes](https://github.com/kyuz0/amd-strix-halo-vllm-toolboxes)).
+
+**Key improvements in this fork:**
+- Docker-based build system (vs manual Distrobox)
+- Multi-stage builds for optimized runtime images
+- CPU-only build support for CI/CD
+- Simplified version management via build arguments
+- Integrated Flash Attention and AITER builds
 
 ## References
 
