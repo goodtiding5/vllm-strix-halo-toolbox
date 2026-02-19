@@ -70,7 +70,8 @@ ENV GPU_TARGET=gfx1151 \
     ROCM_HOME=/opt/rocm \
     ROCM_PATH=/opt/rocm \
     VENV_DIR=/opt/venv \
-    PATH="/opt/venv/bin:${PATH}"
+    PATH="/opt/venv/bin:${PATH}" \
+    FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 
 # Copy wheels and AITER source from builder stage
 COPY --from=builder /workspace/wheels/*.whl /tmp/wheels/
@@ -100,6 +101,10 @@ RUN echo "=== Verifying Installation ===" \
  && (pip show amd-aiter | grep Version || echo "Warning: amd-aiter not found") \
  && echo "=== Verification complete ===" \
  || echo "=== Some verification steps failed, but continuing ==="
+
+# Install amdsmi from ROCm distribution
+RUN . /opt/venv/bin/activate \
+ && pip install /opt/rocm/share/amd_smi
 
 # Default command
 CMD ["/bin/bash"]

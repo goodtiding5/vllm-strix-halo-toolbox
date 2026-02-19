@@ -31,6 +31,7 @@ services:
       - VLLM_TARGET_DEVICE=rocm        # Bypass inference logic
       - HSA_OVERRIDE_GFX_VERSION=11.5.1 # Match the ISA in rocminfo
       - PYTORCH_ROCM_ARCH=gfx1151      # Match the Agent 2 name
+      - VLLM_ATTENTION_BACKEND=TRITON  # Use triton backend instead of flash-attn
       - VLLM_LOGGING_LEVEL=DEBUG       # Enable debug logging for diagnosis
     volumes:
       # Keep your models persistent on your host machine
@@ -44,9 +45,4 @@ services:
       start_period: 60s
     # Default model launch
     command: >
-      vllm
-      serve
-      Qwen/Qwen2.5-0.5B-Instruct
-      --host 0.0.0.0
-      --port 8080
-      --enforce-eager
+      vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --enforce-eager
