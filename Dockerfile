@@ -77,7 +77,7 @@ COPY --from=builder /workspace/wheels/*.whl /tmp/wheels/
 # 1. Flash Attention (base kernel library)
 # 2. AITER (AMD optimized kernels)
 # 3. vLLM (main package)
-RUN source /opt/venv/bin/activate \
+RUN . /opt/venv/bin/activate \
  && echo "Installing Flash Attention..." \
  && pip install --no-cache-dir /tmp/wheels/flash_attn-*.whl \
  && echo "Installing AITER..." \
@@ -90,7 +90,7 @@ RUN source /opt/venv/bin/activate \
 
 # Verify installation
 RUN echo "=== Verifying Installation ===" \
- && source /opt/venv/bin/activate \
+ && . /opt/venv/bin/activate \
  && python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" \
  && python -c "import flash_attn; print(f'Flash Attention installed')" \
  && python -c "import aiter; print(f'AITER installed')" \
