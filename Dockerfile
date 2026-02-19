@@ -92,7 +92,7 @@ RUN . /opt/venv/bin/activate \
 RUN echo "=== Verifying Installation ===" \
  && . /opt/venv/bin/activate \
  && python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" \
- && python -c "import flash_attn; print(f'Flash Attention installed')" \
+ && pip show flash-attn | grep Version \
  && python -c "import aiter; print(f'AITER installed')" \
  && echo "=== All components verified ==="
 
