@@ -1,16 +1,17 @@
-# vLLM for AMD Strix Halo (gfx1151) with Nightly ROCm
+# vLLM for AMD Strix Halo (gfx1151) with ROCm
 
-Complete toolkit for building and running vLLM with AMD nightly ROCm/PyTorch for Strix Halo GPUs (gfx1151).
+Complete toolkit for building and running vLLM with ROCm/PyTorch for Strix Halo GPUs (gfx1151).
 
 ## Overview
 
-This repository provides a step-by-step workflow to build vLLM from source using AMD's nightly ROCm and PyTorch packages specifically for the gfx1151 architecture (AMD Strix Halo / Ryzen AI MAX+ PRO 395).
+This repository provides a workflow to build vLLM from source for the gfx1151 architecture (AMD Strix Halo / Ryzen AI MAX+ PRO 395).
 
 **Key Features:**
-- Uses AMD nightly ROCm/PyTorch packages (gfx1151 support)
-- Step-by-step modular build scripts
-- TCMalloc to prevent memory corruption
-- AITER support documented (optional, produces wheel but vLLM won't use on gfx1151)
+- Uses official ROCm/PyTorch Docker image as base
+- Builds vLLM, AITER, and Flash Attention from source
+- Supports CPU-only build environment (no GPU required for building)
+- Multi-stage Docker build with optimized runtime image
+- Configurable versions via build arguments
 
 ## Requirements
 
@@ -22,120 +23,105 @@ This repository provides a step-by-step workflow to build vLLM from source using
 
 ## Quick Start
 
-### Step 1: Create Toolbox Container
+### Docker Build (Recommended)
+
+The easiest way to build and run vLLM is using Docker:
 
 ```bash
-./00-provision-toolbox.sh -f
-distrobox enter vllm-toolbox
+# Build the image
+docker build -t vllm-gfx1151 .
+
+# Or use docker-compose
+docker compose up -d
 ```
 
-### Step 2: Install System Tools
+### Build Process
+
+We initially attempted to build vLLM using ROCm and PyTorch nightly pip releases in a CPU-only environment, but this approach failed due to build environment complexities. We successfully pivoted to using the official `rocm/pytorch` Docker image as the base, which provides:
+
+- Pre-installed ROCm 7.2.0
+- PyTorch 2.9.1 with ROCm support
+- Working build toolchain
+
+This approach allows building all components (Flash Attention, AITER, and vLLM) for gfx1151 in a CPU-only environment without requiring GPU access during the build process.
+
+### Build Scripts
+
+If you prefer to build manually:
 
 ```bash
-./01-install-tools.sh
-```
+# Build Flash Attention (optional but recommended)
+./04-build-fa.sh --wheel
 
-This installs:
-- Build essentials (cmake, ninja, gcc)
-- Python 3.12 with venv
-- TCMalloc (to prevent memory corruption)
-
-### Step 3: Install ROCm and PyTorch
-
-```bash
-./02-install-rocm.sh
-```
-
-This installs:
-- AMD nightly ROCm 7.11.0+ packages
-- PyTorch 2.11.0a0+ with ROCm support
-- Configures system-wide TCMalloc in `/etc/ld.so.preload`
-
-### Step 4: Build vLLM (AITER is Optional)
-
-```bash
-# Optional: Build AITER (produces wheel, but vLLM won't use on gfx1151)
-./03-build-aiter.sh
+# Build AITER (optional)
+./03-build-aiter.sh --wheel
 
 # Build vLLM
-./04-build-vllm.sh
+./02-build-vllm.sh --wheel
 ```
 
-**Note:** AITER builds successfully and produces a wheel, but vLLM won't use it on gfx1151 since it only supports gfx9 architectures (MI300X, MI350). AITER warning at runtime is expected and harmless.
+All scripts support:
+- `--wheel` flag to build wheels instead of in-place install
+- `--force` flag to clean rebuild
+- Version control via environment variables (VLLM_VERSION, AITER_VERSION, FA_VERSION)
 
-### Step 5: Test vLLM
+## Docker Build System
+
+### Multi-Stage Dockerfile
+
+The main `Dockerfile` uses a multi-stage build process:
+
+**Stage 1: Builder**
+- Based on `rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1`
+- Builds wheels for Flash Attention, AITER, and vLLM
+- Runs in CPU-only environment (no GPU required)
+- Configurable versions via build arguments
+
+**Stage 2: Release**
+- Same base image for consistency
+- Installs pre-built wheels from builder stage
+- Minimal runtime environment
+- Ready for GPU inference
 
 ```bash
-source /opt/venv/bin/activate
-python -c "import vllm; print(f'vLLM {vllm.__version__}')"
-vllm --version
+# Build with default versions
+docker build -t vllm-gfx1151 .
+
+# Build with specific versions
+docker build \
+  --build-arg VLLM_VERSION=v0.6.0 \
+  --build-arg AITER_VERSION=main \
+  --build-arg FA_VERSION=main_perf \
+  -t vllm-gfx1151 .
 ```
 
-## Alternative: Docker Builder
+### Docker Compose
 
-For CI/CD or building wheels on a different machine, use the Docker builder:
+Use `docker-compose.yml` for easier management:
 
 ```bash
-# Build the builder image and run all build scripts
-docker build -f Dockerfile.builder -t vllm-gfx1151-builder .
+# Build and start
+docker compose up -d
 
-# Extract wheels from builder (copies to ./wheels/)
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+### Builder-Only Image
+
+For CI/CD or extracting wheels:
+
+```bash
+# Build only the builder stage
+docker build --target builder -t vllm-gfx1151-builder .
+
+# Extract wheels
 docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-builder \
     bash -c "cp /workspace/wheels/*.whl /output/"
-
-# You now have:
-# - ./wheels/vllm-*.whl (52MB)
-# - ./wheels/amd_aiter-*.whl (29MB)
 ```
-
-**What this does:**
-- Creates Ubuntu 24.04 container
-- Runs scripts 01-04 sequentially
-- Produces both vLLM and AITER wheels
-- All scripts execute with correct paths (`/workspace`, `/opt/venv`)
-- Skips GPU verification (CPU-only builder, no GPU needed for wheel building)
-
-**Advantages:**
-- No GPU required (builder is CPU-only)
-- Reproducible builds
-- Easy CI/CD integration
-
-### Main Dockerfile (Multi-stage Build & Runtime)
-
-The main `Dockerfile` provides both builder and runtime stages in a single build:
-
-```bash
-# Build runtime image with vLLM and AITER pre-installed
-docker build -t vllm-gfx1151-runtime .
-
-# Run vLLM server
-docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
-    vllm serve Qwen/Qwen2.5-0.5B-Instruct \
-    --host 0.0.0.0 \
-    --port 8080 \
-    --enforce-eager
-```
-
-**What this does:**
-- **Stage 1 (Builder):** Builds vLLM and AITER wheels (against ROCm nightly)
-- **Stage 2 (Runtime):** Minimal Ubuntu 24.04 with:
-  - Python 3.12 venv at `/opt/venv` (created fresh)
-  - ROCm nightly packages installed fresh (matching builder's environment)
-  - vLLM and AITER wheels installed with `--no-deps`
-  - TCMalloc preloading configured
-  - PATH set to `/opt/venv/bin`
-
-**Dependency Handling:**
-- ROCm packages are installed fresh in runtime stage (not copied from builder)
-- Wheels are installed with `--no-deps` to avoid dependency conflicts
-- Ensures runtime environment matches what wheels were built against
-- ROCm SDK is installed fresh (no developer tools needed for runtime)
-
-**Advantages:**
-- Single build command produces runnable image
-- Runtime image is minimal (no build tools)
-- Venv is copied directly, ensuring consistency between stages
-- Ready to run with GPU access required
 
 ## GitHub Actions CI/CD
 
