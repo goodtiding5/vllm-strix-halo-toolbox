@@ -40,8 +40,8 @@ ENV SUDO="" \
 # Build vLLM wheel (with BUILD_FA=0 for gfx1151 compatibility)
 RUN /workspace/02-build-vllm.sh --wheel
 
-# Build AITER wheel
-RUN /workspace/03-build-aiter.sh --wheel
+# Build AITER (in-place install, source needed for JIT compilation)
+RUN /workspace/03-build-aiter.sh
 
 # Build Flash Attention wheel
 RUN /workspace/04-build-fa.sh --wheel
