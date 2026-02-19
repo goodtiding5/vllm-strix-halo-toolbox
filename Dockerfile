@@ -70,18 +70,20 @@ ENV GPU_TARGET=gfx1151 \
     VENV_DIR=/opt/venv \
     PATH="/opt/venv/bin:${PATH}"
 
-# Copy wheels from builder stage
+# Copy wheels and AITER source from builder stage
 COPY --from=builder /workspace/wheels/*.whl /tmp/wheels/
+COPY --from=builder /workspace/aiter /workspace/aiter
 
 # Install wheels in dependency order:
 # 1. Flash Attention (base kernel library)
-# 2. AITER (AMD optimized kernels)
+# 2. AITER (AMD optimized kernels) - installed in editable mode for JIT compilation
 # 3. vLLM (main package)
 RUN . /opt/venv/bin/activate \
  && echo "Installing Flash Attention..." \
  && pip install --no-cache-dir /tmp/wheels/flash_attn-*.whl \
- && echo "Installing AITER..." \
- && pip install --no-cache-dir /tmp/wheels/amd_aiter-*.whl \
+ && echo "Installing AITER (editable mode for JIT)..." \
+ && cd /workspace/aiter \
+ && pip install -e . --no-build-isolation --no-deps \
  && echo "Installing vLLM..." \
  && pip install --no-cache-dir /tmp/wheels/vllm-*.whl \
  && echo "Cleaning up..." \
