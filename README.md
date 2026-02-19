@@ -17,11 +17,13 @@ This repository provides a workflow to build vLLM from source for the gfx1151 ar
 
 ## Requirements
 
-- **OS:** Ubuntu 24.04 (host or container)
+- **OS:** Linux with Docker support (Ubuntu 24.04 recommended)
 - **GPU:** AMD Strix Halo (gfx1151) - Ryzen AI MAX+ PRO 395 with Radeon 8060S
 - **RAM:** 16GB+ recommended (32GB+ for larger models)
 - **Disk:** 50GB+ for ROCm, PyTorch, and vLLM
 - **Tools:** Docker 24.0+, Docker Compose 2.0+
+
+**Note:** GPU is only required for runtime inference. The build process runs entirely in CPU-only environment.
 
 ## Architecture
 
@@ -176,45 +178,64 @@ This repository uses GitHub Actions for automated Docker image builds:
 
 Workflows can be manually triggered via GitHub Actions UI for on-demand builds.
 
-## Scripts
+## Build Scripts
 
-### 00-provision-toolbox.sh
+These scripts are used by the Docker build process but can also be run manually:
 
-Creates a distrobox container for vLLM development.
+### 02-build-vllm.sh
+
+Builds vLLM from source with ROCm support for gfx1151.
+
+**Features:**
+- Configures for gfx1151 architecture (BUILD_FA=0, BUILD_TRITON=1)
+- Uses existing PyTorch/ROCm from base image
+- Creates installable wheel
 
 **Usage:**
 ```bash
-./00-provision-toolbox.sh [-f|--force]
+./02-build-vllm.sh [--wheel] [--force]
 ```
 
 **Options:**
-- `-f, --force` - Destroy existing toolbox and recreate
+- `--wheel` - Build wheel instead of in-place install
+- `--force` - Clean rebuild (removes existing vllm directory)
 
-**Base Image:** Ubuntu 24.04 (plain, for clean nightly installation)
+**Output:**
+- Wheel: `/workspace/wheels/vllm-*.whl`
 
-### 01-install-tools.sh
+### 03-build-aiter.sh
 
-Installs system-level build tools and TCMalloc.
+Builds AMD AITER (AI Tensor Engine for ROCm) from source.
 
-**Installs:**
-- build-essential, cmake, ninja-build
-- python3.12, python3.12-venv
-- google-perftools, libgoogle-perftools-dev
-- Configures `/etc/ld.so.preload` for TCMalloc
+**Features:**
+- Builds AMD optimized kernels for ROCm
+- Produces wheel for distribution
+- Optional component (vLLM works without it on gfx1151)
 
-### 02-install-rocm.sh
+**Usage:**
+```bash
+./03-build-aiter.sh [--wheel] [--force]
+```
 
-Creates Python virtual environment and installs AMD nightly ROCm/PyTorch.
+**Output:**
+- Wheel: `/workspace/wheels/amd_aiter-*.whl`
 
-**Installs:**
-- ROCm 7.11.0a+ from nightly packages
-- PyTorch 2.11.0a0+ with ROCm support
-- Configures device library paths
-- Creates `/opt/rocm` symlink
+### 04-build-fa.sh
 
-**Environment:**
-- Virtual env: `/opt/venv`
-- ROCm SDK: Automatically extracted from pip packages
+Builds Flash Attention with AMD Triton backend.
+
+**Features:**
+- Custom Flash Attention for gfx1151
+- Uses Triton AMD backend
+- Required for optimal attention performance
+
+**Usage:**
+```bash
+./04-build-fa.sh [--wheel] [--force]
+```
+
+**Output:**
+- Wheel: `/workspace/wheels/flash_attn-*.whl`
 - GPU: gfx1151 (Strix Halo)
 
 ### 03-build-aiter.sh
@@ -308,11 +329,18 @@ FA_VERSION=main_perf
 ### Start vLLM Server
 
 ```bash
-distrobox enter vllm-toolbox
-source /opt/venv/bin/activate
+# Using docker-compose
+docker compose up -d
 
-# Serve a model
-vllm serve Qwen/Qwen2.5-0.5B-Instruct \
+# Or manually with Docker
+docker run -d \
+  --name vllm-gfx1151 \
+  --device /dev/kfd \
+  --device /dev/dri \
+  -p 8080:8080 \
+  -e HSA_OVERRIDE_GFX_VERSION=11.5.1 \
+  vllm-gfx1151 \
+  vllm serve Qwen/Qwen2.5-0.5B-Instruct \
     --host 0.0.0.0 \
     --port 8080 \
     --tensor-parallel-size 1
@@ -391,7 +419,7 @@ vLLM and AITER wheels depend on specific ROCm and PyTorch versions. To avoid con
 
 **Docker Builder:** This is expected and harmless - the Docker builder is CPU-only and doesn't need GPU access to build wheels.
 
-**Distrobox:** If GPU isn't detected:
+**Runtime Container:** If GPU isn't detected:
 ```bash
 # Check ROCm
 rocminfo | grep gfx
@@ -453,22 +481,21 @@ This is **expected and harmless** - vLLM will automatically use standard ROCm/Py
 
 ```
 .
-├── 00-provision-toolbox.sh    # Create distrobox container
-├── 01-install-tools.sh        # Install system build tools
-├── 02-install-rocm.sh         # Install ROCm/PyTorch nightly
-├── 03-build-aiter.sh          # AITER build (produces wheel)
-├── 04-build-vllm.sh           # Build vLLM from source
+├── 02-build-vllm.sh           # Build vLLM from source
+├── 03-build-aiter.sh          # Build AITER kernels
+├── 04-build-fa.sh             # Build Flash Attention
 ├── download-model.sh          # Download Hugging Face models
 ├── test.sh                    # Test API endpoint
 ├── test_vllm.py               # Python test script
 ├── .toolbox.env               # Environment configuration
 ├── .dockerignore             # Docker build exclusions
-├── docker-compose.yml         # Docker service (alternative)
-├── Dockerfile                 # Docker build (alternative)
-├── Dockerfile.builder         # Docker wheel builder (CPU-only, runs 01-04 scripts)
+├── docker-compose.yml         # Docker Compose configuration
+├── Dockerfile                 # Multi-stage Docker build
+├── Dockerfile.builder         # Builder-only image
+├── archive/                   # Archived legacy scripts
 ├── cache/
 │   └── huggingface/          # Model cache
-├── wheels/                   # Built wheels (created by 03 & 04 scripts)
+├── wheels/                   # Built wheels (created by build scripts)
 └── README.md                  # This file
 ```
 
@@ -549,11 +576,11 @@ docker run -d \
 This project is based on pioneering work by **Donato Capitella** ([amd-strix-halo-vllm-toolboxes](https://github.com/kyuz0/amd-strix-halo-vllm-toolboxes)).
 
 **Key improvements in this fork:**
-- Docker-based build system (vs manual Distrobox)
-- Multi-stage builds for optimized runtime images
-- CPU-only build support for CI/CD
+- Multi-stage Docker builds for optimized runtime images
+- CPU-only build support for CI/CD (no GPU required)
 - Simplified version management via build arguments
-- Integrated Flash Attention and AITER builds
+- Integrated Flash Attention and AITER builds (not available in original)
+- Pre-built wheels for all components
 
 ## References
 
